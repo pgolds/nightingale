@@ -25,7 +25,7 @@ rpc:
   listen: 0.0.0.0:9000
 
 mysql:
-  addr: "root:1234@tcp(127.0.0.1:3306)/n9e?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
+  addr: "root:1qaz2wsx@tcp(192.168.3.9:3306)/n9e?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
   max: 128
   idle: 16
   debug: false

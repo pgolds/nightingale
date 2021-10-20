@@ -201,12 +201,6 @@
 
             <footer>
                 <div class="footer-logo">
-                    <a href="https://n9e.didiyun.com">
-                        <img src="https://s3-gz01.didistatic.com/n9e-pub/image/n9e-logo-bg-white.png"  class="footer-logo-image" alt="">
-                    </a>
-                </div>
-                <div class="copyright" style="font-style: italic">
-                    我们希望与您一起，将监控这个事情，做到极致！
                 </div>
             </footer>
         </div>

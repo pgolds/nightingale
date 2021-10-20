@@ -140,6 +140,20 @@ func UserGetById(id int64) (*User, error) {
 	return UserGet("id=?", id)
 }
 
+/**
+ * 根据username获取user
+ */
+func UserPhoneGetByUsername(contacts string) ([]User, error) {
+	//user := UserGet("username in (?)", contacts)
+	var users []User
+	err := DB.In("username", contacts).Find(&users)
+	if err != nil {
+		logger.Errorf("mysql.error: query user username(%s) fail: %s", contacts, err)
+		return nil, internalServerError
+	}
+	return users, nil
+}
+
 func UserGet(where string, args ...interface{}) (*User, error) {
 	var obj User
 	has, err := DB.Where(where, args...).Get(&obj)

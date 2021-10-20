@@ -203,6 +203,7 @@ func configRoutes(r *gin.Engine) {
 		v1.POST("/tag-pairs", GetTagPairs)
 		v1.POST("/tag-metrics", GetMetrics)
 		v1.POST("/push", PushData)
+		v1.POST("/notify-webhook", NotifyWebHook)
 		v1.GET("/collect-rules-belong-to-ident", collectRuleGetsByIdent)
 		v1.GET("/collect-rules-summary", collectRuleSummaryGetByIdent)
 
