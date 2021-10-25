@@ -143,8 +143,7 @@ func UserGetById(id int64) (*User, error) {
 /**
  * 根据username获取user
  */
-func UserPhoneGetByUsername(contacts string) ([]User, error) {
-	//user := UserGet("username in (?)", contacts)
+func UserPhoneGetByUsername(contacts []string) ([]User, error) {
 	var users []User
 	err := DB.In("username", contacts).Find(&users)
 	if err != nil {

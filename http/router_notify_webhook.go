@@ -5,6 +5,7 @@ import (
 	"github.com/didi/nightingale/v5/notify"
 	"github.com/gin-gonic/gin"
 	"strings"
+	"time"
 )
 
 type channel string
@@ -32,13 +33,22 @@ func NotifyWebHook(c *gin.Context) {
 		})
 		return
 	}
-	users, err := model.UserPhoneGetByUsername(strings.Join(nwf.Contacts, ","))
+	eae := &model.ExternalAlertEvent{
+		Channel: string(nwf.Channel),
+		Msgtype: string(nwf.MsgType),
+		Message: nwf.Message,
+		Contacts: strings.Join(nwf.Contacts, ","),
+		CreateAt: time.Now(),
+	}
+	_ = eae.Add()
+
+	users, err := model.UserPhoneGetByUsername(nwf.Contacts)
 	dangerous(err)
 	switch nwf.Channel {
 	case DingTalk:
-		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users)
+		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
 	case WeCom:
-		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users)
+		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
 	case SMS:
 	case Voice:
 	}

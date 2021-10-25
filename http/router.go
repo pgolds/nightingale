@@ -166,6 +166,8 @@ func configRoutes(r *gin.Engine) {
 		pages.GET("/history-alert-events", login(), historyAlertEventGets)
 		pages.GET("/history-alert-event/:id", login(), historyAlertEventGet)
 
+		pages.GET("/external-alert-events", login(), externalAlertEventGets)
+
 		pages.GET("/classpath/:id/collect-rules", login(), collectRuleGets)
 		pages.POST("/collect-rules", login(), collectRuleAdd)
 		pages.DELETE("/collect-rules", login(), collectRuleDel)

@@ -46,7 +46,7 @@ type WeComMessage struct {
 	}	`json:"text"`
 }
 
-func PostToDingTalk(text string, msgtype MsgType, users []model.User) {
+func PostToDingTalk(text string, msgtype MsgType, users []model.User, id int64) {
 	tokenMap := make(map[string]DingTalkMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
@@ -88,11 +88,11 @@ func PostToDingTalk(text string, msgtype MsgType, users []model.User) {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		Post(DingTalkUrl + token, postMessage, "钉钉")
+		Post(DingTalkUrl + token, postMessage, "DingTalk", id)
 	}
 }
 
-func PostToWeCom(text string, msgtype MsgType, users []model.User) {
+func PostToWeCom(text string, msgtype MsgType, users []model.User, id int64) {
 	tokenMap := make(map[string]WeComMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
@@ -114,14 +114,14 @@ func PostToWeCom(text string, msgtype MsgType, users []model.User) {
 			} else {
 				var atMobiles []string
 				atMobiles = append(atMobiles, atMobile)
-				wecomMessage := WeComMessage{
+				weComMessage := WeComMessage{
 					Msgtype: msgtype,
 					Text: struct {
 						Content string	`json:"content"`
 						MentionedMobileList []string	`json:"mentioned_mobile_list"`
 					}{Content: text, MentionedMobileList: atMobiles},
 				}
-				tokenMap[token] = wecomMessage
+				tokenMap[token] = weComMessage
 			}
 		}
 	}
@@ -131,11 +131,11 @@ func PostToWeCom(text string, msgtype MsgType, users []model.User) {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		Post(WeComUrl + token, postMessage, "企业微信")
+		Post(WeComUrl + token, postMessage, "WeCom", id)
 	}
 }
 
-func Post(url string, message []byte, logsign string) {
+func Post(url string, message []byte, logsign string, id int64) {
 	reader := bytes.NewReader(message)
 	resp, err := http.Post(url, "application/json", reader)
 	if err != nil {
@@ -146,5 +146,6 @@ func Post(url string, message []byte, logsign string) {
 	if err != nil {
 		logger.Errorf("【%s】消息发送失败：%s", logsign, err)
 	}
+	_ = model.ExternalAlertEventUpdateResult(id, string(body))
 	logger.Infof("【%s】消息发送完成,服务器返回内容：%s", logsign, string(body))
 }
