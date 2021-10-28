@@ -7,12 +7,22 @@ import (
 	"github.com/toolkits/pkg/logger"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 const DingTalkTokenKey = "dingtalk_robot_token"
 const WeComTokenKey = "wecom_robot_token"
 const DingTalkUrl = "https://oapi.dingtalk.com/robot/send?access_token="
 const WeComUrl = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
+
+type channel string
+
+const (
+	DingTalk = channel("DingTalk")
+	WeCom = channel("WeCom")
+	SMS = channel("SMS")
+	Voice = channel("Voice")
+)
 
 type MsgType string
 const (
@@ -88,7 +98,7 @@ func PostToDingTalk(text string, msgtype MsgType, users []model.User, id int64) 
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		Post(DingTalkUrl + token, postMessage, "DingTalk", id)
+		Post(DingTalkUrl + token, postMessage, string(DingTalk), id, msg.At.AtMobiles)
 	}
 }
 
@@ -131,11 +141,11 @@ func PostToWeCom(text string, msgtype MsgType, users []model.User, id int64) {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		Post(WeComUrl + token, postMessage, "WeCom", id)
+		Post(WeComUrl + token, postMessage, string(WeCom), id, msg.Text.MentionedMobileList)
 	}
 }
 
-func Post(url string, message []byte, logsign string, id int64) {
+func Post(url string, message []byte, logsign string, id int64, contacts []string) {
 	reader := bytes.NewReader(message)
 	resp, err := http.Post(url, "application/json", reader)
 	if err != nil {
@@ -146,6 +156,15 @@ func Post(url string, message []byte, logsign string, id int64) {
 	if err != nil {
 		logger.Errorf("【%s】消息发送失败：%s", logsign, err)
 	}
-	_ = model.ExternalAlertEventUpdateResult(id, string(body))
+	// 发送记录
+	sendResult := model.ExternalAlertResult{
+		Event_id: id,
+		Channel: string(DingTalk),
+		Contacts: strings.Join(contacts, ","),
+		Result: string(body),
+	}
+	_ = sendResult.Add()
+	// 更新已发送
+	_ = model.ExternalAlertEventUpdateStatus(id)
 	logger.Infof("【%s】消息发送完成,服务器返回内容：%s", logsign, string(body))
 }

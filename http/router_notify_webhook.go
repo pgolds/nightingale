@@ -17,10 +17,19 @@ const (
 	Voice = channel("Voice")
 )
 
+type level string
+
+const (
+	INFO = level("Info")
+	WARNING = level("Warning")
+	CRITICAL = level("Critical")
+)
+
 type NotifyWebHookForm struct {
 	Message string	`json:"message" validate:"required"`
 	MsgType notify.MsgType	`json:"msgType" validate:"required"`
 	Channel channel	`json:"channel" validate:"required"`
+	Level level	`json:"level" validate:"required"`
 	Contacts []string	`json:"contacts" validate:"required"`
 }
 
@@ -34,7 +43,7 @@ func NotifyWebHook(c *gin.Context) {
 		return
 	}
 	eae := &model.ExternalAlertEvent{
-		Channel: string(nwf.Channel),
+		Level: string(nwf.Level),
 		Msgtype: string(nwf.MsgType),
 		Message: nwf.Message,
 		Contacts: strings.Join(nwf.Contacts, ","),
@@ -44,13 +53,16 @@ func NotifyWebHook(c *gin.Context) {
 
 	users, err := model.UserPhoneGetByUsername(nwf.Contacts)
 	dangerous(err)
-	switch nwf.Channel {
-	case DingTalk:
+	switch nwf.Level {
+	case CRITICAL:
 		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
-	case WeCom:
 		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
-	case SMS:
-	case Voice:
+	case WARNING:
+		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
+		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
+	case INFO:
+		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
+		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
 	}
 	renderMessage(c, nil)
 }
