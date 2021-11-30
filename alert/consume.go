@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
+	"html/template"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,10 +15,10 @@ import (
 	"github.com/didi/nightingale/v5/judge"
 	"github.com/didi/nightingale/v5/models"
 
+	notifyHandle "github.com/didi/nightingale/v5/notify"
 	"github.com/toolkits/pkg/concurrent/semaphore"
 	"github.com/toolkits/pkg/logger"
 	"github.com/toolkits/pkg/net/httplib"
-	"github.com/toolkits/pkg/sys"
 )
 
 func popEvent() {
@@ -176,47 +176,142 @@ type AlertMsg struct {
 }
 
 func notify(alertMsg AlertMsg) {
-	//增加并发控制
-	bs, err := json.Marshal(alertMsg)
-	if err != nil {
-		logger.Errorf("notify: marshal alert %+v err:%v", alertMsg, err)
-	}
+	notifyGo(alertMsg)
+	////增加并发控制
+	//bs, err := json.Marshal(alertMsg)
+	//if err != nil {
+	//	logger.Errorf("notify: marshal alert %+v err:%v", alertMsg, err)
+	//}
+	//
+	//fpath := config.Config.Alert.NotifyScriptPath
+	//cmd := exec.Command(fpath)
+	//cmd.Stdin = bytes.NewReader(bs)
+	//
+	//logger.Infof("alertMsg content: %s", string(bs))
+	//
+	//// combine stdout and stderr
+	//var buf bytes.Buffer
+	//cmd.Stdout = &buf
+	//cmd.Stderr = &buf
+	//
+	//err = cmd.Start()
+	//if err != nil {
+	//	logger.Errorf("notify: run cmd err:%v", err)
+	//	return
+	//}
+	//
+	//err, isTimeout := sys.WrapTimeout(cmd, time.Duration(10)*time.Second)
+	//
+	//if isTimeout {
+	//	if err == nil {
+	//		logger.Errorf("notify: timeout and killed process %s", fpath)
+	//	}
+	//
+	//	if err != nil {
+	//		logger.Errorf("notify: kill process %s occur error %v", fpath, err)
+	//	}
+	//
+	//	return
+	//}
+	//
+	//if err != nil {
+	//	logger.Errorf("notify: exec script %s occur error: %v, output: %s", fpath, err, buf.String())
+	//	return
+	//}
+	//
+	//logger.Infof("notify: exec %s output: %s", fpath, buf.String())
+}
 
-	fpath := config.Config.Alert.NotifyScriptPath
-	cmd := exec.Command(fpath)
-	cmd.Stdin = bytes.NewReader(bs)
+func notifyGo(alertMsg AlertMsg) {
+	event := alertMsg.Event
+	// 触发时间
+	triggerTime := event.TriggerTime
+	// 事件id
+	eventId := event.Id
 
-	// combine stdout and stderr
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	err = cmd.Start()
-	if err != nil {
-		logger.Errorf("notify: run cmd err:%v", err)
+	// 通知渠道
+	notifyChannels := strings.Split(strings.TrimSpace(alertMsg.Event.NotifyChannels), " ")
+	if len(notifyChannels) == 0 {
+		logger.Infof("%s notify channels empty", alertMsg.Rule.Name)
 		return
 	}
 
-	err, isTimeout := sys.WrapTimeout(cmd, time.Duration(10)*time.Second)
+	// parse metric json
+	var metricArr []map[string]interface{}
+	err := json.Unmarshal(event.HistoryPoints, &metricArr)
+	if err != nil {
+		logger.Errorf("metric point parse failure")
+		return
+	}
 
-	if isTimeout {
-		if err == nil {
-			logger.Errorf("notify: timeout and killed process %s", fpath)
-		}
+	// take metric
+	var metrics []string
+	for _, item := range metricArr {
+		metrics = append(metrics, item["metric"].(string))
+	}
 
+	// 状态
+	var status string
+	if event.IsRecov() {
+		status = fmt.Sprintf("P%d 恢复", event.Priority)
+	} else {
+		status = fmt.Sprintf("P%d 告警", event.Priority)
+	}
+
+	// template values
+	payload := models.NotifyTemplate{
+		IsAlert: !event.IsRecov(),
+		IsMachineDep: event.ResClasspaths != "",
+		Sname: event.RuleName,
+		Ident: event.ResIdent,
+		Classpath: event.ResClasspaths,
+		Metric: strings.Join(metrics, ","),
+		Tags: event.Tags,
+		Value: event.Values,
+		Status: status,
+		ReadableExpression: event.ReadableExpression,
+		TriggerTime: time.Unix(triggerTime, 0).Format("2006-01-02 15:04:05"),
+		RuleId: event.RuleId,
+		EventId: eventId,
+	}
+
+	// send channel notify
+	users := alertMsg.Users
+	for _, ch := range notifyChannels {
+
+		// 解析模板
+		t, err := template.ParseFiles(fmt.Sprintf("etc/script/tpl/%s.tpl", ch))
 		if err != nil {
-			logger.Errorf("notify: kill process %s occur error %v", fpath, err)
+			logger.Errorf("template parse failure error: %s", err.Error())
+			return
+		}
+		// 模板变量赋值
+		buf := new(bytes.Buffer)
+		err = t.Execute(buf, payload)
+		if err != nil {
+			logger.Errorf("template exec failure")
+			return
 		}
 
-		return
+		switch notifyHandle.Channel(ch) {
+		case notifyHandle.DingTalk: {
+			notifyHandle.PostToDingTalk(buf.String(), notifyHandle.Markdown, users, -1)
+		}
+		case notifyHandle.WeCom: {
+			notifyHandle.PostToWeCom(buf.String(), notifyHandle.Markdown, users, -1)
+		}
+		case notifyHandle.SMS: {
+
+		}
+		case notifyHandle.Voice: {
+
+		}
+		}
+
+		logger.Infof("notify result: %s", buf.String())
+
 	}
 
-	if err != nil {
-		logger.Errorf("notify: exec script %s occur error: %v, output: %s", fpath, err, buf.String())
-		return
-	}
-
-	logger.Infof("notify: exec %s output: %s", fpath, buf.String())
 }
 
 func callback(event *models.AlertEvent, alertRule *models.AlertRule) {

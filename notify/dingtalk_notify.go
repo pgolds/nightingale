@@ -15,13 +15,13 @@ const WeComTokenKey = "wecom_robot_token"
 const DingTalkUrl = "https://oapi.dingtalk.com/robot/send?access_token="
 const WeComUrl = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
 
-type channel string
+type Channel string
 
 const (
-	DingTalk = channel("DingTalk")
-	WeCom = channel("WeCom")
-	SMS = channel("SMS")
-	Voice = channel("Voice")
+	DingTalk = Channel("dingtalk")
+	WeCom = Channel("weCom")
+	SMS = Channel("sms")
+	Voice = Channel("voice")
 )
 
 type MsgType string
@@ -56,7 +56,7 @@ type WeComMessage struct {
 	}	`json:"text"`
 }
 
-func PostToDingTalk(text string, msgtype MsgType, users []model.User, id int64) {
+func PostToDingTalk(text string, msgtype MsgType, users []*model.User, id int64) {
 	tokenMap := make(map[string]DingTalkMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
@@ -80,13 +80,19 @@ func PostToDingTalk(text string, msgtype MsgType, users []model.User, id int64) 
 				atMobiles = append(atMobiles, atMobile)
 				dingTalkMessage := DingTalkMessage{
 					Msgtype: msgtype,
-					Text: struct {
-						Content string	`json:"content"`
-					}{Content: text},
 					At: struct {
 						AtMobiles []string	`json:"atMobiles"`
 						IsAtAll bool	`json:"IsAtAll"`
 					}{AtMobiles: atMobiles, IsAtAll: false},
+				}
+				switch msgtype {
+				case Markdown: {
+					dingTalkMessage.Markdown.Title = "钉钉通知"
+					dingTalkMessage.Markdown.Text = text
+				}
+				case Text: {
+					dingTalkMessage.Text.Content = text
+				}
 				}
 				tokenMap[token] = dingTalkMessage
 			}
@@ -102,7 +108,7 @@ func PostToDingTalk(text string, msgtype MsgType, users []model.User, id int64) 
 	}
 }
 
-func PostToWeCom(text string, msgtype MsgType, users []model.User, id int64) {
+func PostToWeCom(text string, msgtype MsgType, users []*model.User, id int64) {
 	tokenMap := make(map[string]WeComMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
@@ -130,6 +136,14 @@ func PostToWeCom(text string, msgtype MsgType, users []model.User, id int64) {
 						Content string	`json:"content"`
 						MentionedMobileList []string	`json:"mentioned_mobile_list"`
 					}{Content: text, MentionedMobileList: atMobiles},
+				}
+				switch msgtype {
+				case Markdown: {
+					weComMessage.Markdown.Content = text
+				}
+				case Text: {
+					weComMessage.Text.Content = text
+				}
 				}
 				tokenMap[token] = weComMessage
 			}

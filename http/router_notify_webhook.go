@@ -8,27 +8,18 @@ import (
 	"time"
 )
 
-type channel string
-
-const (
-	DingTalk = channel("DingTalk")
-	WeCom = channel("WeCom")
-	SMS = channel("SMS")
-	Voice = channel("Voice")
-)
-
 type level string
 
 const (
-	INFO = level("Info")
-	WARNING = level("Warning")
-	CRITICAL = level("Critical")
+	P1 = level("P1")
+	P2 = level("P2")
+	P3 = level("P3")
 )
 
 type NotifyWebHookForm struct {
 	Message string	`json:"message" validate:"required"`
 	MsgType notify.MsgType	`json:"msgType" validate:"required"`
-	Channel channel	`json:"channel" validate:"required"`
+	Channel notify.Channel	`json:"channel" validate:"required"`
 	Level level	`json:"level" validate:"required"`
 	Contacts []string	`json:"contacts" validate:"required"`
 }
@@ -54,13 +45,13 @@ func NotifyWebHook(c *gin.Context) {
 	users, err := model.UserPhoneGetByUsername(nwf.Contacts)
 	dangerous(err)
 	switch nwf.Level {
-	case CRITICAL:
+	case P3:
 		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
 		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
-	case WARNING:
+	case P2:
 		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
 		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
-	case INFO:
+	case P1:
 		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
 		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
 	}
