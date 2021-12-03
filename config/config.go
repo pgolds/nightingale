@@ -31,6 +31,11 @@ type ConfigStruct struct {
 	ContactKeys    []contactKey        `yaml:"contactKeys"`
 	NotifyChannels []string            `yaml:"notifyChannels"`
 	Tpl            tplSection          `yaml:"tpl"`
+	AlertConfig	   alertConfig		   `yaml:"alertConfig"`
+}
+
+type alertConfig struct {
+	DialUrl string	`yaml:"dialUrl"`
 }
 
 type tplSection struct {

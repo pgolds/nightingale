@@ -12,6 +12,7 @@ type NotifyTemplate struct {
 	Status string
 	ReadableExpression string
 	TriggerTime string
+	Owner string
 	RuleId int64
 	EventId int64
 }

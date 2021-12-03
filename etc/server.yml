@@ -25,7 +25,7 @@ rpc:
   listen: 0.0.0.0:9000
 
 mysql:
-  addr: "root:1qaz2wsx@tcp(192.168.31.171:3306)/n9e?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
+  addr: "root:1qaz2wsx@tcp(192.168.31.179:3306)/n9e?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
   max: 128
   idle: 16
   debug: false
@@ -124,3 +124,6 @@ notifyChannels:
   - voice
   - dingtalk
   - wecom
+
+alertConfig:
+  dialUrl: http://172.16.20.41:8110/v1/api/transTTS

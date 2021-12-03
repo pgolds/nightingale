@@ -17,22 +17,16 @@ const (
 )
 
 type NotifyWebHookForm struct {
-	Message string	`json:"message" validate:"required"`
-	MsgType notify.MsgType	`json:"msgType" validate:"required"`
-	Channel notify.Channel	`json:"channel" validate:"required"`
-	Level level	`json:"level" validate:"required"`
-	Contacts []string	`json:"contacts" validate:"required"`
+	Message string	`json:"message" binding:"required"`
+	MsgType notify.MsgType	`json:"msgType" binding:"required"`
+	Channel notify.Channel	`json:"channel"`
+	Level level	`json:"level" binding:"required"`
+	Contacts []string	`json:"contacts" binding:"required"`
 }
 
 func NotifyWebHook(c *gin.Context) {
 	var nwf NotifyWebHookForm
 	bind(c, &nwf)
-	if len(nwf.Contacts) == 0 {
-		renderMessage(c, map[string]string{
-			"err": "无联系人信息!",
-		})
-		return
-	}
 	eae := &model.ExternalAlertEvent{
 		Level: string(nwf.Level),
 		Msgtype: string(nwf.MsgType),
@@ -54,6 +48,7 @@ func NotifyWebHook(c *gin.Context) {
 	case P1:
 		go notify.PostToDingTalk(nwf.Message, nwf.MsgType, users, eae.Id)
 		go notify.PostToWeCom(nwf.Message, nwf.MsgType, users, eae.Id)
+		go notify.PostToVoice(nwf.Message, users, eae.Id)
 	}
 	renderMessage(c, nil)
 }

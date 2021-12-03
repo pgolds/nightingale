@@ -226,8 +226,6 @@ func notifyGo(alertMsg AlertMsg) {
 	event := alertMsg.Event
 	// 触发时间
 	triggerTime := event.TriggerTime
-	// 事件id
-	eventId := event.Id
 
 	// 通知渠道
 	notifyChannels := strings.Split(strings.TrimSpace(alertMsg.Event.NotifyChannels), " ")
@@ -258,6 +256,20 @@ func notifyGo(alertMsg AlertMsg) {
 		status = fmt.Sprintf("P%d 告警", event.Priority)
 	}
 
+	// 添加markdown @
+	users := alertMsg.Users
+	var atMobiles []string
+	for _, user := range users {
+		if user.Phone != "" {
+			at := "@" + user.Phone
+			atMobiles = append(atMobiles, at)
+		}
+	}
+	var owner string
+	if len(atMobiles) > 0 {
+		owner = strings.Join(atMobiles, ",")
+	}
+
 	// template values
 	payload := models.NotifyTemplate{
 		IsAlert: !event.IsRecov(),
@@ -271,12 +283,12 @@ func notifyGo(alertMsg AlertMsg) {
 		Status: status,
 		ReadableExpression: event.ReadableExpression,
 		TriggerTime: time.Unix(triggerTime, 0).Format("2006-01-02 15:04:05"),
+		Owner: owner,
 		RuleId: event.RuleId,
-		EventId: eventId,
+		EventId: event.Id,
 	}
 
 	// send channel notify
-	users := alertMsg.Users
 	for _, ch := range notifyChannels {
 
 		// 解析模板
@@ -304,11 +316,9 @@ func notifyGo(alertMsg AlertMsg) {
 
 		}
 		case notifyHandle.Voice: {
-
+			notifyHandle.PostToVoice(buf.String(), users, -1)
 		}
 		}
-
-		logger.Infof("notify result: %s", buf.String())
 
 	}
 

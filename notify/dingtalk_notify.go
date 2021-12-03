@@ -3,8 +3,10 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/didi/nightingale/v5/config"
 	model "github.com/didi/nightingale/v5/models"
 	"github.com/toolkits/pkg/logger"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -33,56 +35,65 @@ const (
 type DingTalkMessage struct {
 	Msgtype MsgType	`json:"msgtype"`
 	Markdown struct {
-		Title string `json:"title"`
-		Text string	`json:"text"`
-	}	`json:"markdown"`
+		Title string `json:"title,omitempty"`
+		Text string	`json:"text,omitempty"`
+	}	`json:"markdown,omitempty"`
 	Text struct {
-		Content string	`json:"content"`
-	}	`json:"text"`
+		Content string	`json:"content,omitempty"`
+	}	`json:"text,omitempty"`
 	At struct {
 		AtMobiles []string	`json:"atMobiles"`
-		IsAtAll bool	`json:"IsAtAll"`
+		IsAtAll bool	`json:"isAtAll"`
 	}	`json:"at"`
 }
 
 type WeComMessage struct {
 	Msgtype MsgType	`json:"msgtype"`
 	Markdown struct {
-		Content string `json:"content"`
-	}	`json:"markdown"`
+		Content string `json:"content,omitempty"`
+	}	`json:"markdown,omitempty"`
 	Text struct {
-		Content string	`json:"content"`
-		MentionedMobileList []string	`json:"mentioned_mobile_list"`
+		Content string	`json:"content,omitempty"`
+		MentionedMobileList []string	`json:"mentioned_mobile_list,omitempty"`
 	}	`json:"text"`
 }
 
+type VoiceMessage struct {
+	Phones []string	`json:"phones"`
+	Text	string	`json:"text"`
+}
+
+// 钉钉通知
 func PostToDingTalk(text string, msgtype MsgType, users []*model.User, id int64) {
 	tokenMap := make(map[string]DingTalkMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
 			continue
 		}
-		logger.Infof("user.Contacts: %s", user.Contacts)
 		var contactKeys map[string]string
 		if err := json.Unmarshal(user.Contacts, &contactKeys); err != nil {
 			continue
 		}
-		atMobile := "@" + user.Phone
+		atMobile := user.Phone
 		// 判断用户是否设置dingtalk token
 		if _, ok := contactKeys[DingTalkTokenKey]; ok {
 			token := contactKeys[DingTalkTokenKey]
+			if token == "" {
+				continue
+			}
 			//	提取一致的token的消息群体
 			if _, ok := tokenMap[token]; ok {
 				atMobiles := tokenMap[token].At.AtMobiles
 				atMobiles = append(atMobiles, atMobile)
 			} else {
+				// markdown格式指定@某人text里必须包含@信息
 				var atMobiles []string
 				atMobiles = append(atMobiles, atMobile)
 				dingTalkMessage := DingTalkMessage{
 					Msgtype: msgtype,
 					At: struct {
 						AtMobiles []string	`json:"atMobiles"`
-						IsAtAll bool	`json:"IsAtAll"`
+						IsAtAll bool	`json:"isAtAll"`
 					}{AtMobiles: atMobiles, IsAtAll: false},
 				}
 				switch msgtype {
@@ -108,13 +119,13 @@ func PostToDingTalk(text string, msgtype MsgType, users []*model.User, id int64)
 	}
 }
 
+// 企业微信通知
 func PostToWeCom(text string, msgtype MsgType, users []*model.User, id int64) {
 	tokenMap := make(map[string]WeComMessage)
 	for _, user := range users {
 		if user.Contacts == nil {
 			continue
 		}
-		logger.Infof("user.Contacts: %s", user.Contacts)
 		var contactKeys map[string]string
 		if err := json.Unmarshal(user.Contacts, &contactKeys); err != nil {
 			continue
@@ -123,6 +134,9 @@ func PostToWeCom(text string, msgtype MsgType, users []*model.User, id int64) {
 		// 判断用户是否设置dingtalk token
 		if _, ok := contactKeys[WeComTokenKey]; ok {
 			token := contactKeys[WeComTokenKey]
+			if token == "" {
+				continue
+			}
 			//	提取一致的token的消息群体
 			if _, ok := tokenMap[token]; ok {
 				atMobiles := tokenMap[token].Text.MentionedMobileList
@@ -133,8 +147,8 @@ func PostToWeCom(text string, msgtype MsgType, users []*model.User, id int64) {
 				weComMessage := WeComMessage{
 					Msgtype: msgtype,
 					Text: struct {
-						Content string	`json:"content"`
-						MentionedMobileList []string	`json:"mentioned_mobile_list"`
+						Content string	`json:"content,omitempty"`
+						MentionedMobileList []string	`json:"mentioned_mobile_list,omitempty"`
 					}{Content: text, MentionedMobileList: atMobiles},
 				}
 				switch msgtype {
@@ -159,13 +173,43 @@ func PostToWeCom(text string, msgtype MsgType, users []*model.User, id int64) {
 	}
 }
 
+// 电话通知
+func PostToVoice(text string, users []*model.User, id int64) {
+	var phones []string
+	for _, user := range users {
+		phone := user.Phone
+		if phone != "" {
+			phones = append(phones, phone)
+		}
+	}
+	voiceMessage := &VoiceMessage{
+		phones,
+		text,
+	}
+	postMessage, err := json.Marshal(voiceMessage)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+	dialUrl := config.Config.AlertConfig.DialUrl
+	Post(dialUrl, postMessage, string(Voice), id, phones)
+}
+
 func Post(url string, message []byte, logsign string, id int64, contacts []string) {
 	reader := bytes.NewReader(message)
 	resp, err := http.Post(url, "application/json", reader)
 	if err != nil {
 		logger.Errorf("【%s】消息发送失败：%s", logsign, err)
 	}
-	defer resp.Body.Close()
+	if resp == nil {
+		logger.Error("resp is nil")
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			logger.Errorf("【%s】连接失败：%s", logsign, err)
+		}
+	}(resp.Body)
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		logger.Errorf("【%s】消息发送失败：%s", logsign, err)

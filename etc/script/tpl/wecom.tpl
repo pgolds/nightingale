@@ -7,5 +7,6 @@
 #### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">当前值: </font>{{.Value}}
 #### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">报警说明: </font>{{.ReadableExpression}}
 #### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">触发时间: </font>{{.TriggerTime}}
+#### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">所有者: </font>{{.Owner}}
 #### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">报警详情: </font>[点击查看](http://172.17.1.100:8899/strategy/edit/{{.RuleId}})
 #### <font color="{{if .IsAlert}}#FF0000{{else}}#02b340{{end}}">报警策略: </font>[点击查看](http://172.17.1.100:8899/event/{{.EventId}})
